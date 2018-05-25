@@ -1,0 +1,683 @@
+;===============================================================================
+; コマンドリスト自動実行マクロ ver1.22A
+; （自動ログインおよびログ開始機能付きコマンド自動送信）
+;
+; 引数にてコマンドリストファイルの指定
+; 第１引数			C:\Program Files\teraterm\ttpmacro.exe
+; 第２引数(param1)	command_list_common_ver1.21A(auto).ttl（相対パス可）
+; 第３引数(param2)	コマンドリストの指定（相対パス可）
+; 第４引数(param3)	TERATERM用環境設定ファイル(.INI)の指定
+;
+;                                                             2018/05/25 N.Inoue
+;                                               mailto:gx3n-inue@asahi-net.or.jp
+;===============================================================================
+
+
+;=====================================================================
+; 接続情報およびコマンドリストファイルを開く
+;=====================================================================
+
+;-----------------------------------------------------------
+; タイムアウト時間の指定
+;-----------------------------------------------------------
+TIMEOUT_ORG = 20
+timeout = TIMEOUT_ORG
+
+;-----------------------------------------------------------
+; ログ開始フラグ（0=開始前, 1=開始後）
+;-----------------------------------------------------------
+LOGSTART_FLAG = 0
+
+;-----------------------------------------------------------
+; マクロの置かれているパスの取得
+;-----------------------------------------------------------
+getdir MACRO_DIR
+
+;-----------------------------------------------------------
+; マクロ起動時の引数の確認（コマンドリストファイルの指定）
+;-----------------------------------------------------------
+strlen param2
+if result = 0 then
+	;-------------------------------------------------------
+	; ファイルを開くダイアログを表示
+	;-------------------------------------------------------
+	;filenamebox '接続情報およびコマンドリストファイルを開く' 0 MACRO_DIR
+	filenamebox '接続情報およびコマンドリストファイルを開く' 0
+
+	; command_listのパスを作成
+	PATH_COMMANDLIST = inputstr
+else
+	PATH_COMMANDLIST = param2
+endif
+
+strlen PATH_COMMANDLIST
+if result = 0 then
+	end
+endif
+
+;-----------------------------------------------------------
+; マクロ起動時の引数の確認（TERATERM.INIの指定）
+;-----------------------------------------------------------
+strlen param3
+if result > 0 then
+	sprintf2 FILENAME_TERATERM_INI '%s\%s' MACRO_DIR param3
+else
+	FILENAME_TERATERM_INI = ''
+endif
+
+; messagebox FILENAME_TERATERM_INI 'INI'
+
+;-----------------------------------------------------------
+; コマンドリストファイルをマクロで開く
+;-----------------------------------------------------------
+fileopen HDL_CMDLIST PATH_COMMANDLIST 0
+
+if result = -1 then
+
+	; ファイルを開けなかった場合は終了する。
+	messagebox 'ファイルを開けませんでした。' 'Error!'
+	end
+
+endif
+
+
+;=====================================================================
+; ここからループ処理
+; 最終行まで到達したかの判定
+;=====================================================================
+
+; 終了判定を0（偽）にしておく
+FIN_FLAG=0
+
+do
+	; コマンドリストファイルより１行読み込む
+	filereadln HDL_CMDLIST CMD_LINE
+
+	; 最終行に到達した場合、終了判定を1（真）にする
+	if result = 1 then
+		FIN_FLAG = 1
+		fileclose HDL_CMDLIST
+		messagebox '接続情報が見つかりませんでした。' 'Error!'
+		end
+	endif
+
+	; 行頭が'#'でなければループ終了
+	strmatch CMD_LINE '^#'
+	if result = 0 FIN_FLAG = 1
+
+loop while FIN_FLAG = 0
+
+; 現在の接続状態を確認する。
+testlink
+
+; すでに接続済みの場合は接続処理を行わずログ開始処理へ
+if result = 2 goto label_log_start
+
+;==========================================================================
+; ホスト名、ポート番号、ユーザー名、パスワードの分離
+;==========================================================================
+
+; ホスト名（ＩＰアドレス）とポート番号以降を分離する
+strsplit CMD_LINE ':' 2
+
+;messagebox groupmatchstr1 '読み込んだ接続情報の１列目の表示'
+
+strlen groupmatchstr2
+
+if result = 0 then
+	; ポート番号が省略されていた場合
+
+	; ３列（ホスト名、ユーザー名、パスワード）を分離する
+	strsplit groupmatchstr1 ',' 3
+
+	;messagebox groupmatchstr1 'ホスト名'
+	;messagebox groupmatchstr2 'ユーザー名'
+	;messagebox groupmatchstr3 'パスワード'
+
+	; ホスト名（ＩＰアドレス）をセットする
+	HOSTNAME = groupmatchstr1
+
+	; ポート番号のセットしない（TeraTermデフォルトは22番(SSH)）
+	PORTNUM = '(default)'
+else
+	; ポート番号が指定されている場合
+
+	;messagebox groupmatchstr1 'ホスト名'
+
+	; ホスト名（ＩＰアドレス）をセットする
+	HOSTNAME = groupmatchstr1
+
+	; 残り３列（ポート番号、ユーザー名、パスワード）を分離する
+	strsplit groupmatchstr2 ',' 3
+
+	;messagebox groupmatchstr1 'ポート番号'
+	;messagebox groupmatchstr2 'ユーザー名'
+	;messagebox groupmatchstr3 'パスワード'
+
+	; ポート番号のセット
+	PORTNUM = groupmatchstr1
+endif
+
+; 接続文字列の作成
+CONNECT_STRING = HOSTNAME
+
+
+;========================================================================
+; COMポートが指定されていた場合の処理
+;========================================================================
+
+strmatch HOSTNAME 'COM[0-9]'
+if result = 1 then
+	COM_NUM = HOSTNAME
+	strremove COM_NUM 1 3
+
+	; CONNECT_STRINGに'COM[0-9]'をセットする
+	;sprintf2 CONNECT_STRING '/C=%1s' COM_NUM
+	sprintf2 CONNECT_STRING '/C=%1s %s' COM_NUM FILENAME_TERATERM_INI
+
+	goto label_connect
+endif
+
+
+;========================================================================
+; SSHが指定されているか調べる
+;========================================================================
+:label_check_ssh
+
+strcompare PORTNUM '(default)'
+
+if result = 0 then
+
+	; ポート番号が省略されていた場合は、ポート番号の指定なしでCONNECT
+	strconcat CONNECT_STRING ' /ssh /auth=password'
+
+else
+
+	; ポート番号指定を付加する
+	strconcat CONNECT_STRING ':'
+	strconcat CONNECT_STRING PORTNUM
+
+	; PORTNUMが22番(SSH)かどうか調べる
+	strcompare PORTNUM '22'
+
+	if result = 0 then
+		; SSHが指定されていた場合
+		strconcat CONNECT_STRING ' /ssh /auth=password'
+	else
+		; SSH以外（TELNET含む）の場合
+		strconcat CONNECT_STRING ' /nossh /T1'
+		goto label_connect
+	endif
+
+endif
+
+
+;========================================================================
+; ユーザー名およびパスワードのセットおよび入力
+;========================================================================
+strlen groupmatchstr2
+
+if result = 0 then
+
+	; ユーザー名の指定がない場合
+
+	strlen groupmatchstr3
+
+	if result = 0 then
+		; ユーザー名、パスワードともに指定なし
+
+		TITLE = HOSTNAME
+		strconcat TITLE ':'
+		strconcat TITLE PORTNUM
+
+		inputbox 'Login User:' TITLE
+		USERNAME = inputstr
+		passwordbox 'パスワードを入力してください。' TITLE
+		PASSWD = inputstr
+	else
+		; パスワードが指定されていた場合
+		
+		; USERNAME = ''		; ユーザー名不要の場合はコメント解除
+
+		;=============================================================
+		; USERNAMEのセットは、ユーザー名が不要の場合は
+		; コメントアウトしてください。
+		;=============================================================
+		USERNAME = 'testuser'	; 不要の場合はコメントアウト
+		PASSWD = groupmatchstr3
+	endif
+
+else
+	; ユーザー名の指定がある場合
+
+	USERNAME = groupmatchstr2
+
+	strlen groupmatchstr3
+
+	if result = 0 then
+		TITLE = HOSTNAME
+		strconcat TITLE ':'
+		strconcat TITLE PORTNUM
+
+		passwordbox 'パスワードを入力してください。' TITLE
+		PASSWD = inputstr
+	else
+		; パスワードも指定されていた場合
+		PASSWD = groupmatchstr3
+	endif
+endif
+
+
+;=====================================================================
+; ポート番号の確認
+;=====================================================================
+:label_port_check
+
+
+; USERNAMEがセットされているかどうか調べる
+strlen USERNAME
+
+if result > 0 then
+	strconcat CONNECT_STRING ' /user='
+	strconcat CONNECT_STRING USERNAME
+endif
+
+strconcat CONNECT_STRING ' /passwd='
+strconcat CONNECT_STRING PASSWD
+
+
+;=====================================================================
+; ログイン処理
+;=====================================================================
+
+:label_connect
+
+;-----------------------------------------------------------
+; TERATERM用環境設定ファイルの指定を追加する。
+;-----------------------------------------------------------
+strlen FILENAME_TERATERM_INI
+if result > 0 then
+	sprintf2 CONNECT_STRING '%s /F=%s' CONNECT_STRING FILENAME_TERATERM_INI
+endif
+
+;messagebox CONNECT_STRING '確認'
+
+;SSH or TELNET接続
+connect CONNECT_STRING
+
+if result <> 2 then
+	; 接続されていなければ終了する。
+
+	messagebox '接続できませんでした。' 'CONNECT Fail'
+	end
+endif
+
+
+;=====================================================================
+; 実行コマンドリストの取得
+;=====================================================================
+
+wait
+pause 2
+
+; 念のため改行を送信する。
+;sendln
+
+; 終了判定を0（偽）にしておく
+FIN_FLAG = 0
+
+
+
+;=====================================================================
+; ここからループ処理
+; 最終行まで到達したかの判定
+;=====================================================================
+do
+	; コマンドリストファイルより１行読み込む
+	filereadln HDL_CMDLIST CMD_LINE
+
+	; 最終行に到達した場合、終了判定を1（真）にする
+	if result = 1 then
+		FIN_FLAG = 1
+		break
+	endif
+
+	; 行頭が'#'でなければコマンド実行サブルーチンへ
+	strmatch CMD_LINE '^##'
+	if result = 0 call label_cmd_exec
+
+loop while FIN_FLAG = 0
+
+; 最終行に到達していた場合は終了処理に進む
+
+
+;=====================================================================
+; 終了処理
+;=====================================================================
+:label_end_proc
+
+; コマンドリストファイルをクローズする
+fileclose HDL_CMDLIST
+
+END_COUNT = 0
+
+:label_close_wait
+
+; 接続断まで１秒待つ
+pause 1
+
+; 現在の接続状態を確認する。
+testlink
+
+if result = 2 then
+
+	END_COUNT = END_COUNT + 1
+
+	if END_COUNT < 15 then
+		goto label_close_wait
+	endif
+
+endif
+
+; 接続が終了した時点でログはクローズするので logclose は不要
+;logclose
+
+; マクロを終了する
+end
+
+;---------------------------------------------------------------------
+;=====================================================================
+; ログ出力設定
+;=====================================================================
+:label_log_start
+
+	; WINDOWSのログオン名を取得する
+	getenv 'USERNAME' WINLOGON_NAME
+
+	; タイムスタンプを取得する
+	gettime TIMESTR '%Y%m%d-%H%M%S'
+
+	; 接続先ホスト名（IPアドレス）を取得する
+	gethostname CONNECT_HOST
+
+	;---------------------------------------------
+	; 環境変数TERATERM_LOGが定義されているか調べる。
+	;---------------------------------------------
+	getenv 'TERATERM_LOG' TERATERM_LOG
+
+	strlen TERATERM_LOG
+	if result = 0 then
+		;---------------------------------------------
+		; 定義されていない場合
+		;---------------------------------------------
+		; マクロの置かれているパスを取得する
+		getdir MACRO_DIR
+
+		; 出力ログファイル名を生成する
+		sprintf2 LOG_FILENAME '%s\log\%s_%s_%s.log' MACRO_DIR PROMPT CONNECT_HOST TIMESTR
+
+	else
+		;---------------------------------------------
+		; 定義されていた場合
+		;---------------------------------------------
+		; 出力ログファイル名を生成する
+		sprintf2 LOG_FILENAME '%s\%s_%s_%s.log' TERATERM_LOG PROMPT CONNECT_HOST TIMESTR
+
+	endif
+
+	strreplace LOG_FILENAME 1 '\\@' '_'
+
+;	messagebox LOG_FILENAME '生成するlogファイルのパス'
+
+
+	;-------------------------------------------------------
+	; 環境変数TERATERM_LOGが定義されているか調べる。
+	;-------------------------------------------------------
+	getenv 'MODE_DEBUG' MODE_DEBUG
+	strcompare MODE_DEBUG '1'
+	if result = 0 then
+		MASSAGE = '以下のファイル名でログを作成します。'#13#10#13#10
+		strconcat MASSAGE LOG_FILENAME
+		messagebox MASSAGE 'ログファイルのパス'
+	endif
+
+	; 出力ログファイルをオープンする
+	logopen LOG_FILENAME 0 0
+
+;	; 出力ログファイルをオープンできたか確認する
+;	loginfo LOG_FILENAME
+;	
+;	messagebox result result
+;	
+;	if result = -1 then
+;		messagebox 'ログファイルをオープンできませんでした。' 'Error!'
+;		end
+;	endif
+
+	LOGSTART_FLAG = 1
+return
+;---------------------------------------------------------------------
+
+
+
+;---------------------------------------------------------------------
+;=====================================================================
+; コマンド実行サブルーチン
+;=====================================================================
+:label_cmd_exec
+	;MESSAGE="次のコマンドに進みますか？"#13#10#13#10
+	;strconcat MESSAGE CMD_LINE
+	;strconcat MESSAGE #13#10#13#10
+	;strconcat MESSAGE "Yes=続ける No=終了する"#13#10
+	;
+	;yesnobox MESSAGE "確認ダイアログ"
+	
+	;if result = 1 then
+	;	; Yes または Y の場合
+	
+	strlen CMD_LINE
+
+	if result = 0 && LOGSTART_FLAG = 0 then
+		;=============================================================
+		; 送信内容が空行で、
+		; ログが開始されていなければログを開始させる。
+		;=============================================================
+		
+		; 現在の接続状態を確認する。
+		testlink
+
+		if result <> 2 then
+			
+			; 接続されていなければ終了する。
+			end
+			
+		endif
+		
+		; 受信バッファをクリア
+		flushrecv
+		
+		; 読み込んだコマンド（空行）を送る。
+		sendln CMD_LINE
+		
+		; 念のため、もう一度、空行を送信する
+		sendln
+		
+		timeout = 3
+		
+		; プロンプト文字列を待つ
+		; waitln '>' '#' '$' ']' '/' '%'
+		waitln '>' '#' '$' ']' '%'
+		
+		if result = 0 then
+			
+			; タイムアウトした場合の処理
+			call label_get_prompt
+			PROMPT = RET_VAL
+			
+		else
+			
+			; タイムアウトしなかった場合
+			PROMPT = inputstr
+			
+		endif
+		
+		; タイムアウト時間を元に戻す。
+		timeout = TIMEOUT_ORG
+
+		; プロンプト文字列から記号を削除する
+	;	strreplace PROMPT 1 '[>#\$\[\]/\ ]' ''
+	;	strreplace PROMPT 1 ' ' ''
+	;	strreplace PROMPT 1 '!' ''
+
+		strreplace PROMPT 1 '] ' ''
+		strreplace PROMPT 1 '> ' ''
+		strreplace PROMPT 1 '# ' ''
+		strreplace PROMPT 1 '% ' ''
+		strreplace PROMPT 1 '\$ ' ''
+		strreplace PROMPT 1 '\[ ' ''
+		strreplace PROMPT 1 '\] ' ''
+
+		strreplace PROMPT 1 ']' ''
+		strreplace PROMPT 1 '>' ''
+		strreplace PROMPT 1 '#' ''
+		strreplace PROMPT 1 '%' ''
+		strreplace PROMPT 1 '\$' ''
+		strreplace PROMPT 1 '\[' ''
+		strreplace PROMPT 1 '\]' ''
+		strreplace PROMPT 1 '\~' ''
+		strreplace PROMPT 1 '\:' ''
+		strreplace PROMPT 1 '@' '\@'
+
+
+	;	NEC IP8800で、まだ保存していない時のプロンプト処理用
+		
+		strreplace PROMPT 1 '!' ''
+		
+		; プロンプト文字列の確認（デバッグ用）
+	;	messagebox PROMPT 'PROMPT'
+		
+		; プロンプト文字列がセットされていた場合、ログを開始する
+	;	strlen PROMPT
+	;	if result > 0 then
+	;		call label_log_start
+		;endif
+		
+		call label_log_start
+		
+	else
+		;=============================================================
+		; ポート80, 8080向けに、
+		; 'GET'から始まるコマンドの場合もログを開始
+		;=============================================================
+		strscan CMD_LINE 'GET'
+		
+		if result > 0  && LOGSTART_FLAG = 0 then
+			PROMPT = 'GET_HTTP'
+			call label_log_start
+		endif
+		
+		; 現在の接続状態を確認する。
+		testlink
+
+		if result <> 2 then
+			
+			; 接続されていなければ終了する。
+			end
+			
+		endif
+		
+		; 受信バッファをクリア
+		flushrecv
+		
+		; 読み込んだコマンドを送信（実行）する
+		sendln CMD_LINE
+		
+		strmatch CMD_LINE 'enable'
+		if result = 1 then
+			
+			; wait 'Password:'
+			waitregex 'Password:' 'password:"
+			
+		else
+			if LOGSTART_FLAG = 1 then
+				
+				; プロンプト文字列の確認（デバッグ用）
+			;	messagebox PROMPT 'PROMPT'
+				
+				; プロンプトが表示されるのを待つ。
+				strmatch PROMPT 'unknown'
+				
+				if result = 0 then
+:label_more1
+					; wait   PROMPT
+					waitregex '--?s*[mM]ore?s*--' PROMPT
+					
+					if result = 1 then
+						send ' '
+						goto label_more1
+					endif
+					
+				else
+:label_more2
+					; wait '>' '#' '$' ']' '/' ':' '%'
+					; wait '>' '#' '$' ']' ':' '%'
+					waitregex '--?s*[mM]ore?s*--' '>' '#' '\$' '\]' ':' '%'
+					
+					if result = 1 then
+						send ' '
+						goto label_more2
+					endif
+					
+				endif
+				
+			else
+				
+				; なにもせずに次の処理へ
+				
+			endif
+		endif
+
+	;		endif
+	;	
+	;	else
+	;	; No または N の場合は、終了フラグをセットする
+	;	FIN_FLAG = 1
+	;
+	endif
+	
+	; メイン処理に戻る
+	return
+
+;---------------------------------------------------------------------
+
+;=====================================================================
+; コマンド実行サブルーチン
+;=====================================================================
+:label_get_prompt
+
+	; 現在の接続状態を確認する。
+	testlink
+	
+	if result <> 2 then
+		
+		; 接続されていなければ終了する。
+		end
+		
+	endif
+	
+	; 受信バッファをクリア
+	flushrecv
+	
+	; 読み込んだコマンドを送信（実行）する
+	sendln CMD_LINE
+
+	; waitln '>' '#' '$' ']' '/' ':' '%'
+	waitln '>' '#' '$' ']' ':' '%'
+
+	if result > 0 then
+		RET_VAL = inputstr
+	else
+		RET_VAL = 'unknown'
+	endif
+
+	return

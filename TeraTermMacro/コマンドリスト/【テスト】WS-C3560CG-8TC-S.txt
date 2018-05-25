@@ -1,0 +1,53 @@
+###---------------------------------------------------------------------###
+### 【正常性確認コマンド群】
+### 対象機器：テスト用L3スイッチ
+### 対象ＩＰ：192.168.1.254
+### 機種：Cisco WS-C3560CG-8TC-S
+### 作成日：2018/05/24(Thr)
+###---------------------------------------------------------------------###
+192.168.1.254:23,,
+test
+
+enable
+test
+
+terminal length 0
+terminal monitor
+
+show version
+show clock
+
+show interfaces status
+show interfaces counter error
+show interfaces trunk
+
+show ip interfaces brief
+
+show vlan
+
+show spanning-tree
+show mac-address-table
+
+show etherchannel summary
+show etherchannel detail
+show etherchannel port
+
+show ip arp
+
+show ip route
+
+show ip ospf
+show ip ospf neighbor
+show ip ospf interface
+show ip ospf interface brief
+show ip ospf database
+
+show access-lists
+
+show mls qos
+show mls qos interface
+
+show running-config
+show logging
+
+quit
