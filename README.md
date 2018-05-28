@@ -4,11 +4,12 @@ multiExec_from_ExcelVBA
 ExcelVBAからコマンドをマルチプロセスで並列実行するサンプルプログラムです。
 
 
-## System
-Microsoft Excel 2007/2010以降
+## システム要件
+*Windows XP/Vista/7/10
+*Microsoft Excel 2007/2010以降
 
 
-## Installation
+## ダウンロード
 
 Use the command:
 ```コマンド プロンプト（またはPowerShell）を開き、git でダウンロードします。
@@ -26,5 +27,5 @@ Use the command:
 4. [BAT並列実行]ボタンをクリックします。
 
 ## ライセンス
-
-multiExec_from_ExcelVBA ver1.00 / Copyright(c) 2018 by Nobuyuki Inoue
+コマンド並列実行マクロ『multiExec_from_ExcelVBA』 ver1.00
+Copyright(c) 2018 by Nobuyuki Inoue
