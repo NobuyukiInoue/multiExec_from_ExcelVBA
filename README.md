@@ -5,14 +5,14 @@ ExcelVBAからコマンドをマルチプロセスで並列実行するサンプルプログラムです。
 
 
 ## システム要件
-*Windows XP/Vista/7/10
+*Windows XP/Vista/7/10  
 *Microsoft Excel 2007/2010以降
 
 
 ## ダウンロード
 
-Use the command:
-```コマンド プロンプト（またはPowerShell）を開き、git でダウンロードします。
+コマンド プロンプト（またはPowerShell）を開き、git でダウンロードします。  
+```
 >git clone https://github.com/gx3n-inue/list-ping
 ```
 
@@ -27,5 +27,5 @@ Use the command:
 4. [BAT並列実行]ボタンをクリックします。
 
 ## ライセンス
-コマンド並列実行マクロ『multiExec_from_ExcelVBA』 ver1.00
+コマンド並列実行マクロ『multiExec_from_ExcelVBA』 ver1.00  
 Copyright(c) 2018 by Nobuyuki Inoue
