@@ -28,4 +28,4 @@ ExcelVBAからコマンドをマルチプロセスで並列実行するサンプルプログラムです。
 ## ライセンス
   
 コマンド並列実行マクロ『multiExec_from_ExcelVBA』 ver1.00  
-Copyright(c) 2018 by Nobuyuki Inoue  
+This project is licensed under the terms of the MIT license, see LICENSE.  
