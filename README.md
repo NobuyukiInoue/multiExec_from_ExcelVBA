@@ -12,7 +12,7 @@ ExcelVBAからコマンドをマルチプロセスで並列実行するサンプルプログラムです。
 
 コマンド プロンプト（またはPowerShell）を開き、git でダウンロードします。  
 ```
->git clone https://github.com/gx3n-inue/list-ping
+>git clone https://github.com/gx3n-inue/multiExec_from_ExcelVBA
 ```
 
 ## 実行方法
