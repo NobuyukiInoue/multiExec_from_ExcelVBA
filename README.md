@@ -5,7 +5,7 @@ ExcelVBAからコマンドをマルチプロセスで並列実行するサンプルプログラムです。
   
 
 ## システム要件
-*Windows XP/Vista/7/10 or Windows Server 2008/2012/2016  
+*Windows XP/Vista/7/8/10 or Windows Server 2008/2012/2016  
 *Microsoft Excel 2007/2010以降  
 
 ## ダウンロード
